@@ -3,23 +3,55 @@
 import { useEffect, useRef, useState } from "react";
 import Card from "@/components/ui/Card";
 import Link from "next/link";
+import { Game } from "@/game/Game";
 
 export default function GamePage() {
   const gameCanvasRef = useRef<HTMLDivElement>(null);
+  const gameInstanceRef = useRef<Game | null>(null);
   const [gameLoaded, setGameLoaded] = useState(false);
+  const [gameError, setGameError] = useState<string | null>(null);
 
-  // This will eventually initialize the Phaser game
+  // Initialize the Phaser game
   useEffect(() => {
-    // TODO: Initialize Phaser 3 game here
-    // const game = new Phaser.Game(config);
-    // game.mount(gameCanvasRef.current);
+    const initGame = async () => {
+      try {
+        // Only run on client side
+        if (typeof window === "undefined") return;
 
-    // For now, just simulate loading
-    const timer = setTimeout(() => {
-      setGameLoaded(true);
-    }, 1000);
+        if (gameCanvasRef.current && !gameInstanceRef.current) {
+          console.log("Initializing game...");
 
-    return () => clearTimeout(timer);
+          // Dynamically import the Game class only on client side
+          const { Game } = await import("@/game/Game");
+          console.log("Game class imported");
+
+          // Create game instance
+          gameInstanceRef.current = new Game();
+          console.log("Game instance created");
+
+          // Initialize the game
+          const game = await gameInstanceRef.current.init(
+            "phaser-game-container"
+          );
+          console.log("Game initialized:", game);
+
+          setGameLoaded(true);
+        }
+      } catch (error) {
+        console.error("Failed to initialize game:", error);
+        setGameError("Failed to load game. Please refresh and try again.");
+      }
+    };
+
+    initGame();
+
+    return () => {
+      // Cleanup game on unmount
+      if (gameInstanceRef.current) {
+        gameInstanceRef.current.destroy();
+        gameInstanceRef.current = null;
+      }
+    };
   }, []);
 
   return (
@@ -52,7 +84,7 @@ export default function GamePage() {
                     id="phaser-game-container"
                   >
                     {/* Loading State */}
-                    {!gameLoaded && (
+                    {!gameLoaded && !gameError && (
                       <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-purple-900/20 flex items-center justify-center">
                         <div className="text-center">
                           <div className="animate-pulse text-6xl mb-4">🐧</div>
@@ -69,23 +101,23 @@ export default function GamePage() {
                       </div>
                     )}
 
-                    {/* Game Ready State */}
-                    {gameLoaded && (
-                      <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                    {/* Error State */}
+                    {gameError && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-red-900/20 to-red-800/20 flex items-center justify-center">
                         <div className="text-center">
-                          <div className="text-8xl mb-6">🐧</div>
-                          <h2 className="text-3xl font-bold mb-4">
-                            Game Ready!
+                          <div className="text-6xl mb-4">❌</div>
+                          <h2 className="text-2xl font-bold mb-2 text-red-400">
+                            Game Error
                           </h2>
-                          <p className="text-text-secondary mb-6">
-                            Phaser 3 will mount here. Click restart to begin the
-                            fight simulation.
+                          <p className="text-text-secondary mb-4">
+                            {gameError}
                           </p>
-                          <div className="space-y-2 text-sm text-text-muted">
-                            <div>🎮 Game Engine: Ready</div>
-                            <div>🐧 Penguin Controls: WASD</div>
-                            <div>🔥 Fight: M8S Phase 1</div>
-                          </div>
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="btn btn-outline"
+                          >
+                            Refresh Page
+                          </button>
                         </div>
                       </div>
                     )}
